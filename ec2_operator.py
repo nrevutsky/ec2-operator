@@ -103,7 +103,7 @@ if __name__ == "__main__":
                                 logger.info("Starting instance: %s (%s)", name, instance.id)
                                 start_list.append(instance.id)
                         except ValueError as ve:
-                            logger.error("Invalid auto:start tag on instance %s (%s): '%s' (%s)", name, instance.id, start_sched, e)
+                            logger.error("Invalid auto:start tag on instance %s (%s): '%s' (%s)", name, instance.id, start_sched, ve)
 
                         try:
                             # queue up instances that have the stop time falls between 30 minutes ago and now
@@ -111,7 +111,7 @@ if __name__ == "__main__":
                                 logger.info("Stopping instance: %s (%s)", name, instance.id)
                                 stop_list.append(instance.id)
                         except ValueError as ve:
-                            logger.error("Invalid auto:stop tag on instance %s (%s): '%s' (%s)", name, instance.id, stop_sched, e)
+                            logger.error("Invalid auto:stop tag on instance %s (%s): '%s' (%s)", name, instance.id, stop_sched, ve)
 
                 # start instances
                 if start_list and not args.dry_run:
