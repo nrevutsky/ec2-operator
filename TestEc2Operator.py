@@ -19,7 +19,18 @@ class TestEc2Operator(TestCase):
         except ValueError:
             pass
         except Exception as e:
-            self.fail("Unexpected exception thrown: " + e.message)
+            self.fail("Unexpected exception thrown: " + e)
+        else:
+            self.fail("Expected exception not thrown")
+
+        try:
+            ec2_operator.time_to_stop("badcron 0 6 * * *",
+                                      self.get_pytz_utc_datetime("Jan 15 2015 00:00"),
+                                      self.get_pytz_utc_datetime("Jan 01 2015 00:00"))
+        except KeyError:
+            pass
+        except Exception as e:
+            self.fail("Unexpected exception thrown: " + e)
         else:
             self.fail("Expected exception not thrown")
 

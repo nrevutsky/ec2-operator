@@ -102,7 +102,7 @@ if __name__ == "__main__":
                             if start_sched and state == "stopped" and time_to_start(start_sched, now):
                                 logger.info("Starting instance: %s (%s)", name, instance.id)
                                 start_list.append(instance.id)
-                        except ValueError as ve:
+                        except (ValueError, KeyError) as ve:
                             logger.error("Invalid auto:start tag on instance %s (%s): '%s' (%s)", name, instance.id, start_sched, ve)
 
                         try:
@@ -110,7 +110,7 @@ if __name__ == "__main__":
                             if stop_sched and state == "running" and time_to_stop(stop_sched, now, launch_time):
                                 logger.info("Stopping instance: %s (%s)", name, instance.id)
                                 stop_list.append(instance.id)
-                        except ValueError as ve:
+                        except (ValueError, KeyError) as ve:
                             logger.error("Invalid auto:stop tag on instance %s (%s): '%s' (%s)", name, instance.id, stop_sched, ve)
 
                 # start instances
