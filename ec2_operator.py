@@ -40,8 +40,6 @@ def time_to_stop(schedule, now, launch_time):
 
 if __name__ == "__main__":
 
-    now = datetime.datetime.now(pytz.utc)
-
     parser = argparse.ArgumentParser(description='Automatically stop and start ec2 instances based on tags.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-l", "--loglevel", help="Set logging level", type=str.lower,
                         choices=['debug', 'info', 'warning', 'error', 'critical'])
@@ -51,6 +49,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--startwin", help="How many minutes early an instance may be started", default=start_window_size_minutes, type=int)
     parser.add_argument("-t", "--stopwin", help="How many minutes after an instance will be stopped", default=stop_window_size_minutes, type=int)
     parser.add_argument("-n", "--dry-run", help="trial run with no instance stops or starts", action="store_true")
+    parser.add_argument("-z", "--timezone", help="timezone in which the auto:start and auto:stop times are set to.",default='UTC')
     args = parser.parse_args()
 
     if args.loglevel:
@@ -70,6 +69,12 @@ if __name__ == "__main__":
     logger.setLevel(log_level)
 
     logger.info("Run starting.")
+    try:
+        now_tz=pytz.timezone(args.timezone)
+        now = datetime.datetime.now(now_tz)
+    except pytz.exceptions.UnknownTimeZoneError as e:
+        logger.error("Exception error unknown timezone: %s", e)
+        exit(1)
 
     # go through all regions
     instances = 0
