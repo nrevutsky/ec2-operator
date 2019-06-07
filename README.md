@@ -43,6 +43,9 @@ Usage
                             (default: 60)
       -n, --dry-run         trial run with no instance stops or starts (default:
                             False)
+      -z TIMEZONE, --timezone TIMEZONE
+                            timezone in which the auto:start and auto:stop times
+                            are set to. (default: UTC)
 
 Example
 --------
