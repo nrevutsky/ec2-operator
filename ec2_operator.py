@@ -23,7 +23,7 @@ def time_to_start(schedule, now):
     # Round 'now' down and subtract one second so if the script is called at e.g. 05:00 and auto:start is 05:00,
     # croniter gives us this 05:00 run instead of the next. Otherwise, if this runs at 5:00 instances wouldn't start
     cron = croniter.croniter(schedule, now - datetime.timedelta(0, now.second + 1))
-    window_end = now + datetime.timedelta(0, start_window_size_minutes * 60)
+    window_end = now + datetime.timedelta(0, args.startwin * 60)
     cron_time = cron.get_next(datetime.datetime)
     logger.debug("now <= cron_time <= window_end = %s < %s < %s", now, window_end, cron_time)
     return (now <= cron_time <= window_end)
@@ -33,10 +33,16 @@ def time_to_stop(schedule, now, launch_time):
     # Round 'now' up to the next minute so if the script is called at e.g. 05:00 and auto:stop is 05:00, croniter
     # gives us this 05:00 run instead of the last one, and we shut down the instance on time.
     cron = croniter.croniter(schedule, now + datetime.timedelta(0, 60 - now.second))
-    window_start = now - datetime.timedelta(0, stop_window_size_minutes * 60)
+    window_start = now - datetime.timedelta(0, args.stopwin * 60)
     cron_time = cron.get_prev(datetime.datetime)
     logger.debug("window_start <= cron_time <= now = %s < %s < %s", window_start, cron_time, now)
     return (launch_time < window_start <= cron_time <= now)
+
+def check_window(value):
+    window = int(value)
+    if (window < 0 or window > 1440):
+        raise argparse.ArgumentTypeError("%s is an invalid number of minutes, please specify a value between 0 and 1440" % value)
+    return window
 
 if __name__ == "__main__":
 
@@ -46,8 +52,8 @@ if __name__ == "__main__":
     parser.add_argument("-f", "--logfile", help="Enable logging to filename")
     parser.add_argument("-m", "--logmax", help="Maximum log size before rotation in megabytes", default=1, type=int)
     parser.add_argument("-b", "--logbackups", help="Maximum number of rotated logs to keep", default=10, type=int)
-    parser.add_argument("-s", "--startwin", help="How many minutes early an instance may be started", default=start_window_size_minutes, type=int)
-    parser.add_argument("-t", "--stopwin", help="How many minutes after an instance will be stopped", default=stop_window_size_minutes, type=int)
+    parser.add_argument("-s", "--startwin", help="How many minutes early an instance may be started", default=start_window_size_minutes, type=check_window)
+    parser.add_argument("-t", "--stopwin", help="How many minutes after an instance will be stopped", default=stop_window_size_minutes, type=check_window)
     parser.add_argument("-n", "--dry-run", help="trial run with no instance stops or starts", action="store_true")
     parser.add_argument("-z", "--timezone", help="timezone in which the auto:start and auto:stop times are set to.",default='UTC')
     args = parser.parse_args()
