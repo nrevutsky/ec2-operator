@@ -25,7 +25,7 @@ def time_to_start(schedule, now):
     cron = croniter.croniter(schedule, now - datetime.timedelta(0, now.second + 1))
     window_end = now + datetime.timedelta(0, args.startwin * 60)
     cron_time = cron.get_next(datetime.datetime)
-    logger.debug("now <= cron_time <= window_end = %s < %s < %s", now, window_end, cron_time)
+    logger.debug("now <= cron_time <= window_end = %s < %s < %s", now, cron_time, window_end)
     return (now <= cron_time <= window_end)
 
 
