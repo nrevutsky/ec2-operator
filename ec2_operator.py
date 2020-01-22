@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 start_window_size_minutes = 10
 stop_window_size_minutes = 60
 
+# Default window sizes to avoid missing a reboot if a cron run misses or is off substantially from script runs.
+reboot_window_size_minutes = 5
 
 def time_to_start(schedule, now):
     # Round 'now' down and subtract one second so if the script is called at e.g. 05:00 and auto:start is 05:00,
@@ -38,6 +40,15 @@ def time_to_stop(schedule, now, launch_time):
     logger.debug("window_start <= cron_time <= now = %s < %s < %s", window_start, cron_time, now)
     return (launch_time < window_start <= cron_time <= now)
 
+def time_to_reboot(schedule, now):
+    # Round 'now' down and subtract one second so if the script is called at e.g. 05:00 and auto:reboot is 05:00,
+    # croniter gives us this 05:00 run instead of the next. Otherwise, if this runs at 5:00 instances wouldn't reboot
+    cron = croniter.croniter(schedule, now - datetime.timedelta(0, now.second + 1))
+    window_reboot = now + datetime.timedelta(0, args.rebootwin * 60)
+    cron_time = cron.get_next(datetime.datetime)
+    logger.debug("now <= cron_time <= window_reboot = %s < %s < %s", now, cron_time, window_reboot)
+    return (now <= cron_time <= window_reboot)
+
 def check_window(value):
     window = int(value)
     if (window < 0 or window > 1440):
@@ -46,7 +57,7 @@ def check_window(value):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Automatically stop and start ec2 instances based on tags.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description='Automatically stop and start or reboot ec2 instances based on tags.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-l", "--loglevel", help="Set logging level", type=str.lower,
                         choices=['debug', 'info', 'warning', 'error', 'critical'])
     parser.add_argument("-f", "--logfile", help="Enable logging to filename")
@@ -54,8 +65,9 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--logbackups", help="Maximum number of rotated logs to keep", default=10, type=int)
     parser.add_argument("-s", "--startwin", help="How many minutes early an instance may be started", default=start_window_size_minutes, type=check_window)
     parser.add_argument("-t", "--stopwin", help="How many minutes after an instance will be stopped", default=stop_window_size_minutes, type=check_window)
-    parser.add_argument("-n", "--dry-run", help="trial run with no instance stops or starts", action="store_true")
-    parser.add_argument("-z", "--timezone", help="timezone in which the auto:start and auto:stop times are set to.",default='UTC')
+    parser.add_argument("-r", "--rebootwin", help="How many minutes after an instance will be rebooted", default=reboot_window_size_minutes, type=check_window)
+    parser.add_argument("-n", "--dry-run", help="trial run with no instance stops or starts or rebbots", action="store_true")
+    parser.add_argument("-z", "--timezone", help="timezone in which the auto:start and auto:stop and auto:reboot times are set to.",default='UTC')
     args = parser.parse_args()
 
     if args.loglevel:
@@ -92,6 +104,7 @@ if __name__ == "__main__":
                 reservations = conn.get_all_instances()
                 start_list = []
                 stop_list = []
+                reboot_list = []
                 slept = False
                 for reservation in reservations:
                     for instance in reservation.instances:
@@ -102,14 +115,15 @@ if __name__ == "__main__":
                         # check auto:start and auto:stop tags
                         start_sched = instance.tags['auto:start'] if 'auto:start' in instance.tags else None
                         stop_sched = instance.tags['auto:stop'] if 'auto:stop' in instance.tags else None
+                        reboot_sched = instance.tags['auto:reboot'] if 'auto:reboot' in instance.tags else None
 
                         launch_time = dateutil.parser.parse(instance.launch_time)
 
-                        logger.debug("region: %s name: %s  id: %s launch: %s state: %s start_sched: %s stop_sched: %s",
-                                     region.name, name, instance.id, instance.launch_time, state, start_sched, stop_sched)
+                        logger.debug("region: %s name: %s  id: %s launch: %s state: %s start_sched: %s stop_sched: %s reboot_sched %s",
+                                     region.name, name, instance.id, instance.launch_time, state, start_sched, stop_sched, reboot_sched)
 
                         try:
-                            # queue up instances that have the start time falls between now and the next 30 minutes
+                            # queue up instances that have the start time falls between now and the next <startwin> minutes
                             if start_sched and state == "stopped" and time_to_start(start_sched, now):
                                 logger.info("Starting instance: %s (%s)", name, instance.id)
                                 start_list.append(instance.id)
@@ -117,12 +131,20 @@ if __name__ == "__main__":
                             logger.error("Invalid auto:start tag on instance %s (%s): '%s' (%s)", name, instance.id, start_sched, ve)
 
                         try:
-                            # queue up instances that have the stop time falls between 30 minutes ago and now
+                            # queue up instances that have the stop time falls between <stopwin> minutes ago and now
                             if stop_sched and state == "running" and time_to_stop(stop_sched, now, launch_time):
                                 logger.info("Stopping instance: %s (%s)", name, instance.id)
                                 stop_list.append(instance.id)
                         except (ValueError, KeyError) as ve:
                             logger.error("Invalid auto:stop tag on instance %s (%s): '%s' (%s)", name, instance.id, stop_sched, ve)
+
+                        try:
+                            # queue up instances that have the rebbot time falls between now and the next <rebbotwin> minutes
+                            if reboot_sched and state == "running" and time_to_reboot(reboot_sched, now):
+                                logger.info("Rebooting instance: %s (%s)", name, instance.id)
+                                reboot_list.append(instance.id)
+                        except (ValueError, KeyError) as ve:
+                            logger.error("Invalid auto:reboot tag on instance %s (%s): '%s' (%s)", name, instance.id, reboot_sched, ve)
 
                 # start instances
                 if start_list and not args.dry_run:
@@ -147,6 +169,11 @@ if __name__ == "__main__":
                 if stop_list and not args.dry_run:
                     ret = conn.stop_instances(instance_ids=stop_list, dry_run=False)
                     logger.info("stop_instances %s", ret)
+
+                # reboot instances
+                if reboot_list and not args.dry_run:
+                    ret = conn.reboot_instances(instance_ids=reboot_list, dry_run=False)
+                    logger.info("reboot_instances %s", ret)
 
             except Exception as e:
                 logger.error("Exception error in %s: %s", region.name, e)

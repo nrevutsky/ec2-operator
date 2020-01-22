@@ -10,17 +10,21 @@ any load balancers to make sure that the instances comes online in the elastic l
 Example
 -------
 
-Start an instance at 15:00 UTC Monday through Friday and stop it at 04:00 UTC every day.
+Start an instance at 07:00 UTC Monday through Friday and stop it at 18:00 UTC every day.
 
-**auto:start** 0 15 * * 1-5
-**auto:stop**  0 4 * * *
+- **auto:start** 0 7 * * 1-5
+- **auto:stop**  0 18 * * *
+
+Reboot instance at 01:00 UTC every day.
+
+- **auto:reboot**  0 1 * * *
 
 Usage
 -----
 
     usage: ec2_operator.py [-h] [-l {debug,info,warning,error,critical}]
                            [-f LOGFILE] [-m LOGMAX] [-b LOGBACKUPS] [-s STARTWIN]
-                           [-t STOPWIN] [-n]
+                           [-t STOPWIN] [-r REBOOTWIN] [-n]
 
     Automatically stop and start ec2 instances based on tags.
 
@@ -41,6 +45,9 @@ Usage
       -t STOPWIN, --stopwin STOPWIN
                             How many minutes after an instance will be stopped
                             (default: 60)
+      -r REBOOTWIN, --rebootwin STARTWIN
+                            How many minutes early an instance may be rebooted
+                            (default: 5)
       -n, --dry-run         trial run with no instance stops or starts (default:
                             False)
       -z TIMEZONE, --timezone TIMEZONE
@@ -65,7 +72,6 @@ The stop window is 60 minutes by default to give ample room to make sure the ins
 The start window is 10 minutes in order to give several chances to start the instance if run on a */5 schedule as well
 as to give the instance plenty of time to start up before it is needed.
 
-
 Scheduling
 ----------
 
@@ -73,7 +79,6 @@ This is typically executed via cron. The interval needs to make sense according 
 Running every 5 minutes with the default windows is the normal use case.
 
     */5 * * * * /usr/local/bin/ec2_operator.py --loglevel info --logfile /var/log/ec2-operator/ec2-operator.log
-
 
 Permissions
 -----------
